@@ -1,0 +1,34 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug On Robot",
+            "type":"coreclr",
+            "request": "launch",
+            "program": "/opt/dotnet/dotnet",
+            "args": [ "/media/csprojects/${workspaceFolderBasename}/RobotProject.dll" ],
+            "cwd": "/media/csprojects/${workspaceFolderBasename}",
+            "justMyCode": false,
+            "stopAtEntry": false,
+            "console": "internalConsole",
+            "preLaunchTask": "statisticalrobot: Build and Deploy",
+            "pipeTransport": {
+                "pipeCwd": "${workspaceFolder}",
+                "pipeProgram": "ssh",
+                "pipeArgs": [ 
+                    "-o", "StrictHostKeychecking=no",
+                    "-o", "UserKnownHostsFile=/dev/null",
+                    "rompi@${command:avans-statisticalrobot.connectedRobotIpAddress}"
+                ],
+                "debuggerPath": "/opt/vsdbg/vsdbg"
+            },
+            "internalConsoleOptions": "openOnSessionStart",
+            "sourceFileMap": {
+                "/rustc/3c235d5600393dfe6c36eeed34042efad8d4f26e": "${env:USERPROFILE}\\.rustup\\toolchains\\stable-x86_64-pc-windows-msvc\\lib\\rustlib\\src\\rust"
+            }
+        }
+    ]
+}
