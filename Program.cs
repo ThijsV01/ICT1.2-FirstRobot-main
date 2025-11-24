@@ -18,7 +18,7 @@ Console.WriteLine("Hello First Robot!");
 // Play a sound on the built-in robot buzzer to signal that our program is running
 Robot.PlayNotes("g>g");
 
-Led led = new Led(5); // Use the correct pin number here
+Led led = new Led(22); // Use the correct pin number here
 bool ledIsOn = false;
 
 // DriveSystem handles everything to do with movement of the robot

@@ -14,7 +14,7 @@ public class ObstacleDetectionSystem : IUpdatable
     // Note: this could also be passed to us in the constructor call
     //       and that would be cleaner, we wouldn't have to change
     //       our code here in case of a pin change
-    const int UltrasonicPinNumber = 16;
+    const int UltrasonicPinNumber = 26;
     
     // Define how many times per second we perform distance measurements
     // Note: each measurement takes a little bit of time (typically up to 50 milliseconds)
