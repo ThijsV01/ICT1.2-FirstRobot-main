@@ -10,9 +10,7 @@ bool ledIsOn = false;
 DriveSystem driveSystem = new DriveSystem();
 ObstacleDetectionSystem obstacleDetectionSystem = new ObstacleDetectionSystem();
 
-List<IUpdatable> updatables = new List<IUpdatable>();
-updatables.Add(obstacleDetectionSystem);
-updatables.Add(driveSystem);
+List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem];
 
 while (true)
 {
