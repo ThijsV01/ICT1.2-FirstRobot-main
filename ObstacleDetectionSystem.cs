@@ -4,7 +4,6 @@ public class ObstacleDetectionSystem : IUpdatable
 {
     const int UltrasonicPinNumber = 26;
     const int MeasurementIntervalMilliseconds = 300;
-
     private Ultrasonic distanceSensor;
     private PeriodTimer scanIntervalTimer;
     public int ObstacleDistance {get; private set;}
