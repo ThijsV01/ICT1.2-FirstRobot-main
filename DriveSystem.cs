@@ -60,25 +60,31 @@ public class DriveSystem : IUpdatable
     }
     public RobotState Accelerate(int obstacleDistance, double speedStep, double maxSpeed)
     {
-        if (obstacleDistance >= 20)
-        {
-            double newSpeed = Math.Min(GetSpeed() + speedStep, maxSpeed);
-            SetForwardSpeed(newSpeed);
-
-            if (newSpeed >= maxSpeed)
-            {
-                return RobotState.Cruising;
-            }
-        }
-        else
+        if (obstacleDistance < 20)
         {
             return RobotState.Decelerating;
         }
+        double newSpeed = Math.Min(GetSpeed() + speedStep, maxSpeed);
+        SetForwardSpeed(newSpeed);
+        if (newSpeed >= maxSpeed)
+        {
+            return RobotState.Cruising;
+        }
         return RobotState.Accelerating;
     }
-    public RobotState Decelerate(int obstacleDistance, double speedStep)
+    public RobotState Decelerate(int obstacleDistance, double speedStep, bool humanDetected)
     {
-        if (obstacleDistance < 10 || GetSpeed() <= 0 )
+        if (humanDetected)
+        {
+            if (GetSpeed() > 0.05)
+            {
+                SetForwardSpeed(Math.Max(GetSpeed() - speedStep, 0));
+                return RobotState.Decelerating;
+            }
+            Stop();
+            return RobotState.Idle;
+        }
+        if (obstacleDistance < 10 || GetSpeed() <= 0)
         {
             Stop();
             SetTurnSpeed(0.75);
@@ -86,15 +92,11 @@ public class DriveSystem : IUpdatable
             Stop();
             return RobotState.Accelerating;
         }
-        else if (obstacleDistance >= 20)
+        if (obstacleDistance >= 20)
         {
             return RobotState.Accelerating;
         }
-        else
-        {
-            double newSpeed = Math.Max(GetSpeed() - speedStep, 0);
-            SetForwardSpeed(newSpeed);
-        }
+        SetForwardSpeed(Math.Max(GetSpeed() - speedStep, 0));
         return RobotState.Decelerating;
     }
     public RobotState Cruise(int obstacleDistance)
