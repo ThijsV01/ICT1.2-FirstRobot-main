@@ -68,9 +68,17 @@ while (true)
                 robotState = RobotState.Decelerating;
                 humanDetectedDuringSearch = true;
             }
+            if (obstacleDistance < 20)
+            {
+                robotState= RobotState.Decelerating;
+            }
             else
             {
-                robotState = driveSystem.Accelerate(obstacleDistance, SpeedStep, MaxSpeed);
+                driveSystem.SetForwardSpeed(Math.Min(driveSystem.GetSpeed() + SpeedStep, MaxSpeed));
+                if (driveSystem.GetSpeed() >= MaxSpeed)
+                {
+                    robotState = RobotState.Cruising;
+                }
             }
             break;
         case RobotState.Cruising:
@@ -79,9 +87,9 @@ while (true)
                 robotState = RobotState.Decelerating;
                 humanDetectedDuringSearch = true;
             }
-            else
+            else if (obstacleDistance < 20)
             {
-                robotState = driveSystem.Cruise(obstacleDistance);
+                robotState = RobotState.Decelerating;
             }
             break;
         case RobotState.Decelerating:
@@ -90,7 +98,31 @@ while (true)
             {
                 humanDetectedDuringSearch = true;
             }
-            robotState = driveSystem.Decelerate(obstacleDistance, SpeedStep, humanDetectedDuringSearch);
+            if (humanDetectedDuringSearch)
+            {
+                if (driveSystem.GetSpeed() > 0.05 && obstacleDistance > 10)
+                {
+                    driveSystem.SetForwardSpeed(Math.Max(driveSystem.GetSpeed() - SpeedStep, 0));
+                }
+                else
+                {
+                    driveSystem.Stop();
+                    robotState = RobotState.Idle;
+                }
+            }
+            else if (obstacleDistance < 10 || driveSystem.GetSpeed() <= 0)
+            {
+                driveSystem.Stop();
+                driveSystem.SetTurnSpeed(0.75);
+                Robot.Wait(150);
+                driveSystem.Stop();
+                robotState = RobotState.Accelerating;
+            }
+            else if (obstacleDistance >=20)
+            {
+                driveSystem.SetForwardSpeed(Math.Max(driveSystem.GetSpeed() - SpeedStep, 0));
+                robotState = RobotState.Accelerating;
+            }
             break;
     }
     Console.WriteLine($"Robotstate: {robotState} Speed: {driveSystem.GetSpeed()} Distance: {obstacleDistance}");

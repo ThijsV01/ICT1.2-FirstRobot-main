@@ -58,55 +58,6 @@ public class DriveSystem : IUpdatable
         Console.WriteLine($"Motor speed  left: {speedLeft}   right: {speedRight}");
         Robot.Motors(speedLeft, speedRight);
     }
-    public RobotState Accelerate(int obstacleDistance, double speedStep, double maxSpeed)
-    {
-        if (obstacleDistance < 20)
-        {
-            return RobotState.Decelerating;
-        }
-        double newSpeed = Math.Min(GetSpeed() + speedStep, maxSpeed);
-        SetForwardSpeed(newSpeed);
-        if (newSpeed >= maxSpeed)
-        {
-            return RobotState.Cruising;
-        }
-        return RobotState.Accelerating;
-    }
-    public RobotState Decelerate(int obstacleDistance, double speedStep, bool humanDetected)
-    {
-        if (humanDetected)
-        {
-            if (GetSpeed() > 0.05)
-            {
-                SetForwardSpeed(Math.Max(GetSpeed() - speedStep, 0));
-                return RobotState.Decelerating;
-            }
-            Stop();
-            return RobotState.Idle;
-        }
-        if (obstacleDistance < 10 || GetSpeed() <= 0)
-        {
-            Stop();
-            SetTurnSpeed(0.75);
-            Robot.Wait(150);
-            Stop();
-            return RobotState.Accelerating;
-        }
-        if (obstacleDistance >= 20)
-        {
-            return RobotState.Accelerating;
-        }
-        SetForwardSpeed(Math.Max(GetSpeed() - speedStep, 0));
-        return RobotState.Decelerating;
-    }
-    public RobotState Cruise(int obstacleDistance)
-    {
-        if (obstacleDistance < 20)
-        {
-            return RobotState.Decelerating;
-        }
-        return RobotState.Cruising;
-    }
     public void Update()
     {
         // Nothing needed yet
