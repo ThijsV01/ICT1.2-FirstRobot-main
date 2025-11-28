@@ -43,20 +43,67 @@ public class DriveSystem : IUpdatable
     // the robot needs (-300 to 300)
     private short ConvertToRobotSpeedValue(double speed)
     {
-        return (short) Math.Clamp(Math.Round(speed * 300.0), -300.0, 300.0);
+        return (short)Math.Clamp(Math.Round(speed * 300.0), -300.0, 300.0);
     }
     private void CalculateRobotMotorSpeeds()
     {
-        actualSpeedLeft  = Math.Clamp( turnSpeed + forwardSpeed, -1.0, 1.0);
+        actualSpeedLeft = Math.Clamp(turnSpeed + forwardSpeed, -1.0, 1.0);
         actualSpeedRight = Math.Clamp(-turnSpeed + forwardSpeed, -1.0, 1.0);
         Console.WriteLine($"Actual speed  left={actualSpeedLeft,4:F2}   right={actualSpeedRight,4:F2}");
     }
     private void ControlRobotMotorSpeeds()
     {
-        short speedLeft  = ConvertToRobotSpeedValue(actualSpeedLeft);
+        short speedLeft = ConvertToRobotSpeedValue(actualSpeedLeft);
         short speedRight = ConvertToRobotSpeedValue(actualSpeedRight);
         Console.WriteLine($"Motor speed  left: {speedLeft}   right: {speedRight}");
         Robot.Motors(speedLeft, speedRight);
+    }
+    public RobotState Accelerate(int obstacleDistance, double speedStep, double maxSpeed)
+    {
+        if (obstacleDistance >= 20)
+        {
+            double newSpeed = Math.Min(GetSpeed() + speedStep, maxSpeed);
+            SetForwardSpeed(newSpeed);
+
+            if (newSpeed >= maxSpeed)
+            {
+                return RobotState.Cruising;
+            }
+        }
+        else
+        {
+            return RobotState.Decelerating;
+        }
+        return RobotState.Accelerating;
+    }
+    public RobotState Decelerate(int obstacleDistance, double speedStep)
+    {
+        if (obstacleDistance < 10 || GetSpeed() <= 0 )
+        {
+            Stop();
+            SetTurnSpeed(0.75);
+            Robot.Wait(150);
+            Stop();
+            return RobotState.Accelerating;
+        }
+        else if (obstacleDistance >= 20)
+        {
+            return RobotState.Accelerating;
+        }
+        else
+        {
+            double newSpeed = Math.Max(GetSpeed() - speedStep, 0);
+            SetForwardSpeed(newSpeed);
+        }
+        return RobotState.Decelerating;
+    }
+    public RobotState Cruise(int obstacleDistance)
+    {
+        if (obstacleDistance < 20)
+        {
+            return RobotState.Decelerating;
+        }
+        return RobotState.Cruising;
     }
     public void Update()
     {
