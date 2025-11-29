@@ -4,7 +4,7 @@ public class IRHumanDetectionSystem : IUpdatable
 {
     //andere pin nummers en andere waardes in de variabelen zetten
     const int PIRMotionPinNumber = 26;
-    const int MeasurementIntervalMilliseconds = 300;
+    const int IntervalMilliseconds = 300;
     const int AlertTime = 300;
     private PIRMotion irHumanDetectionSensor;
     private PeriodTimer scanIntervalTimer;
@@ -13,8 +13,8 @@ public class IRHumanDetectionSystem : IUpdatable
     public IRHumanDetectionSystem()
     {
         Console.WriteLine("IRHumanDetectionSystem constructor called");
-        irHumanDetectionSensor = new PIRMotion(PIRMotionPinNumber,MeasurementIntervalMilliseconds,AlertTime);
-        scanIntervalTimer = new PeriodTimer(MeasurementIntervalMilliseconds);
+        irHumanDetectionSensor = new PIRMotion(PIRMotionPinNumber,IntervalMilliseconds,AlertTime);
+        scanIntervalTimer = new PeriodTimer(IntervalMilliseconds);
     }
     public void Update()
     {
