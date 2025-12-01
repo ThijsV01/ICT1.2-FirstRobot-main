@@ -10,6 +10,7 @@ public class InteractionManager
         new TimeSpan(21,0,0)
     };
     private List<TimeSpan> completedTimes = [];
+    private DateTime lastButtonPressTime = DateTime.MinValue;
     
     public bool IsInteractionTime()
     {
@@ -18,7 +19,7 @@ public class InteractionManager
         //kijk of er een interactiemoment aan komt
         foreach (TimeSpan interactionTime in interactionTimes)
         {
-            if (now >= interactionTime && !completedTimes.Contains(interactionTime))
+            if (now.Hours == interactionTime.Hours && now.Minutes == interactionTime.Minutes && !completedTimes.Contains(interactionTime))
             {
                 //interactiemoment komt
                 completedTimes.Add(interactionTime);
@@ -32,10 +33,11 @@ public class InteractionManager
         }
         return false;
     }
-    public void StartActivity()
+    public void StartActivity(DateTime startMoment)
     {
-        //als parameters de tijd,datum etc meegeven om in database te zetten
         Robot.PlayNotes("L16EGC6G6");
+        Console.WriteLine(startMoment);
+        Robot.Wait(500);
     }
 
 }

@@ -6,11 +6,14 @@ ObstacleDetectionSystem obstacleDetectionSystem = new ObstacleDetectionSystem();
 IRHumanDetectionSystem irHumanDetectionSystem = new IRHumanDetectionSystem();
 InteractionManager interactionManager = new InteractionManager();
 
+LCD16x2 ledScreen=new LCD16x2(0x3E);
+Led orangeLed = new Led(22);
+Button button = new Button(23);
+
 List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem];
 
-const double MaxSpeed = 0.4;
+const double MaxSpeed = 0.5;
 const double SpeedStep = 0.05;
-bool humanDetectedDuringSearch = false;
 
 RobotState robotState = RobotState.Idle;
 
@@ -23,90 +26,70 @@ while (true)
     }
 
     int obstacleDistance = obstacleDetectionSystem.ObstacleDistance;
-    int humanDetected = irHumanDetectionSystem.FoundHuman;
+    bool humanDetected = irHumanDetectionSystem.FoundHuman == 1;
 
     switch (robotState)
     {
         case RobotState.Idle:
+
             driveSystem.Stop();
-            //kijk of er een interactiemoment aan komt
-            if (interactionManager.IsInteractionTime() && !humanDetectedDuringSearch)
+            ledScreen.SetText("IDLE");
+
+            if (interactionManager.IsInteractionTime())
             {
-                robotState = RobotState.Accelerating;
-            }
-            else if (humanDetectedDuringSearch)
-            {
-                interactionManager.StartActivity();
-                humanDetectedDuringSearch = false;
-            }
-            else
-            {
-                driveSystem.SetTurnSpeed(0.75);
-                Robot.Wait(150);
-                driveSystem.Stop();
-                robotState = RobotState.Accelerating;
+                robotState = RobotState.Driving;
             }
             break;
-        case RobotState.Accelerating:
-            if (humanDetected == 1)
+        case RobotState.Driving:
+
+            ledScreen.SetText("DRIVING");
+
+            if (humanDetected)
             {
-                robotState = RobotState.Decelerating;
-                humanDetectedDuringSearch = true;
+                robotState = RobotState.StoppingForHuman;
+                break;
             }
             if (obstacleDistance < 20)
             {
-                robotState = RobotState.Decelerating;
+                robotState = RobotState.AvoidingObstacle;
+                break;
             }
-            else
-            {
-                driveSystem.SetForwardSpeed(Math.Min(driveSystem.GetSpeed() + SpeedStep, MaxSpeed));
-                if (driveSystem.GetSpeed() >= MaxSpeed)
-                {
-                    robotState = RobotState.Cruising;
-                }
-            }
+            driveSystem.SetForwardSpeed(Math.Min(driveSystem.GetSpeed() + SpeedStep, MaxSpeed));
             break;
-        case RobotState.Cruising:
-            if (humanDetected == 1)
-            {
-                robotState = RobotState.Decelerating;
-                humanDetectedDuringSearch = true;
-            }
-            else if (obstacleDistance < 20)
-            {
-                robotState = RobotState.Decelerating;
-            }
-            else
-            {
-                driveSystem.SetForwardSpeed(MaxSpeed);
-            }
-            break;
-        case RobotState.Decelerating:
+        case RobotState.AvoidingObstacle:
 
-            if (humanDetected == 1)
+            ledScreen.SetText("AVOIDING \nOBSTACLE");
+
+            if (driveSystem.GetSpeed() > 0 && obstacleDistance > 10)
             {
-                humanDetectedDuringSearch = true;
+                driveSystem.SetForwardSpeed(Math.Max(driveSystem.GetSpeed() - SpeedStep, 0));
+                break;
             }
-            if (humanDetectedDuringSearch)
+
+            driveSystem.Stop();
+            driveSystem.SetTurnSpeed(0.75);
+            Robot.Wait(150);
+            driveSystem.Stop();
+            robotState = RobotState.Driving;
+
+            break;
+        case RobotState.StoppingForHuman:
+
+            ledScreen.SetText("AAAH HUMAN!!");
+            orangeLed.SetOn();
+
+            if (driveSystem.GetSpeed() > 0 && obstacleDistance > 10)
             {
-                if (driveSystem.GetSpeed() > 0.05 && obstacleDistance > 10)
-                {
-                    driveSystem.SetForwardSpeed(Math.Max(driveSystem.GetSpeed() - SpeedStep, 0));
-                }
-                else
-                {
-                    robotState = RobotState.Idle;
-                }
+                driveSystem.SetForwardSpeed(Math.Max(driveSystem.GetSpeed() - SpeedStep, 0));
+                break;
             }
-            else if (obstacleDistance < 10 || driveSystem.GetSpeed() <= 0)
-            {
-                robotState=RobotState.Idle;
-            }
-            else if (obstacleDistance >= 20)
-            {
-                robotState = RobotState.Accelerating;
-            }
+            
+            driveSystem.Stop();
+            ledScreen.SetText("START \nINTERACTION");
+            interactionManager.StartActivity(DateTime.Now);
+            orangeLed.SetOff();
+            robotState = RobotState.Idle;
             break;
     }
-    Console.WriteLine($"Robotstate: {robotState} Speed: {driveSystem.GetSpeed()} Distance: {obstacleDistance}");
+    //Console.WriteLine($"Robotstate: {robotState} Speed: {driveSystem.GetSpeed()} Distance: {obstacleDistance}");
 }

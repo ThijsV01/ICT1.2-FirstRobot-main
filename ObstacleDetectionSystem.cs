@@ -18,10 +18,8 @@ public class ObstacleDetectionSystem : IUpdatable
     {
         if (scanIntervalTimer.Check())
         {
-            Robot.LEDs(0, 0, 255);
             ObstacleDistance = distanceSensor.GetUltrasoneDistance();
-            Console.WriteLine($"New distance: {ObstacleDistance} cm");
-            Robot.LEDs(0, 0, 0);
+            //Console.WriteLine($"New distance: {ObstacleDistance} cm");
         }
     }
 }

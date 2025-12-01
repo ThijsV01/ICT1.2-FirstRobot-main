@@ -49,13 +49,13 @@ public class DriveSystem : IUpdatable
     {
         actualSpeedLeft = Math.Clamp(turnSpeed + forwardSpeed, -1.0, 1.0);
         actualSpeedRight = Math.Clamp(-turnSpeed + forwardSpeed, -1.0, 1.0);
-        Console.WriteLine($"Actual speed  left={actualSpeedLeft,4:F2}   right={actualSpeedRight,4:F2}");
+        //Console.WriteLine($"Actual speed  left={actualSpeedLeft,4:F2}   right={actualSpeedRight,4:F2}");
     }
     private void ControlRobotMotorSpeeds()
     {
         short speedLeft = ConvertToRobotSpeedValue(actualSpeedLeft);
         short speedRight = ConvertToRobotSpeedValue(actualSpeedRight);
-        Console.WriteLine($"Motor speed  left: {speedLeft}   right: {speedRight}");
+        //Console.WriteLine($"Motor speed  left: {speedLeft}   right: {speedRight}");
         Robot.Motors(speedLeft, speedRight);
     }
     public void Update()
