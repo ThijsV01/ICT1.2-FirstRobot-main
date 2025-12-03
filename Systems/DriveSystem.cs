@@ -2,8 +2,10 @@ using Avans.StatisticalRobot;
 using Avans.StatisticalRobot.Interfaces;
 public class DriveSystem : IUpdatable
 {
-    private double forwardSpeed; // Between -1.0 and 1.0
-    private double turnSpeed; // Between -1.0 and 1.0
+    private double forwardSpeedTarget; // desired speed
+    private double turnSpeedTarget;    // desired turn
+    private double forwardSpeedActual; // Between -1.0 and 1.0
+    private double turnSpeedActual; // Between -1.0 and 1.0
     private double actualSpeedLeft;  // Between -1.0 and 1.0, where 0.0 is stop
     private double actualSpeedRight; // Between -1.0 and 1.0, where 0.0 is stop
 
@@ -11,18 +13,18 @@ public class DriveSystem : IUpdatable
     {
         Console.WriteLine("DriveSystem constructor called");
         // Start off stationary
-        forwardSpeed = 0.0;
-        turnSpeed = 0.0;
+        forwardSpeedActual = 0.0;
+        turnSpeedActual = 0.0;
+        forwardSpeedTarget = 0.0;
+        turnSpeedTarget = 0.0;
         CalculateRobotMotorSpeeds(); // Updates actualSpeedLeft and actualSpeedRight
     }
-    public double GetSpeed() => forwardSpeed;
+    public double GetSpeed() => forwardSpeedActual;
 
     // Use values between -1.0 (reverse) and 1.0 (forward)
     public void SetForwardSpeed(double newSpeed)
     {
-        forwardSpeed = newSpeed;
-        CalculateRobotMotorSpeeds();
-        ControlRobotMotorSpeeds();
+        forwardSpeedTarget = Math.Clamp(newSpeed, -1.0, 1.0);;
     }
 
     // Use values between 1.0 for clockwise (right hand turn)
@@ -30,9 +32,22 @@ public class DriveSystem : IUpdatable
     // 0.0 is straight ahead
     public void SetTurnSpeed(double newTurnSpeed)
     {
-        turnSpeed = newTurnSpeed;
-        CalculateRobotMotorSpeeds();
-        ControlRobotMotorSpeeds();
+        turnSpeedTarget = Math.Clamp(newTurnSpeed, -1.0, 1.0);;
+    }
+    private double ActualToTarget(double actual, double target, double speedStep)
+    {
+        if (actual < target)
+        {
+            return Math.Min(actual + speedStep, target);
+        }  
+        else if (actual > target)
+        {
+            return Math.Max(actual - speedStep, target);
+        }
+        else
+        {
+            return actual;
+        }    
     }
     public void Stop()
     {
@@ -47,8 +62,8 @@ public class DriveSystem : IUpdatable
     }
     private void CalculateRobotMotorSpeeds()
     {
-        actualSpeedLeft = Math.Clamp(turnSpeed + forwardSpeed, -1.0, 1.0);
-        actualSpeedRight = Math.Clamp(-turnSpeed + forwardSpeed, -1.0, 1.0);
+        actualSpeedLeft = Math.Clamp(turnSpeedActual + forwardSpeedActual, -1.0, 1.0);
+        actualSpeedRight = Math.Clamp(-turnSpeedActual + forwardSpeedActual, -1.0, 1.0);
         //Console.WriteLine($"Actual speed  left={actualSpeedLeft,4:F2}   right={actualSpeedRight,4:F2}");
     }
     private void ControlRobotMotorSpeeds()
@@ -60,11 +75,10 @@ public class DriveSystem : IUpdatable
     }
     public void Update()
     {
-        // Nothing needed yet
+        forwardSpeedActual = ActualToTarget(forwardSpeedActual, forwardSpeedTarget, 0.05);
+        turnSpeedActual = ActualToTarget(turnSpeedActual, turnSpeedTarget, 0.05);
 
-        // TODO Use a separate target speed and an actual speed
-        //      and change the actual speed to approach the target speed
-        //      in small steps, to make speed changes of the robot more
-        //      gradual
+        CalculateRobotMotorSpeeds();
+        ControlRobotMotorSpeeds();
     }
 }

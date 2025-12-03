@@ -1,5 +1,14 @@
 using Avans.StatisticalRobot;
 using Avans.StatisticalRobot.Interfaces;
+using SimpleMqtt;
+using HiveMQtt;
+
+//----------------------------------------------------------------------------------------
+//MQTT CLIENT AANMAKEN
+//----------------------------------------------------------------------------------------
+
+string clientId = "Robot-" + Guid.NewGuid().ToString();
+var mqttClient = SimpleMqttClient.CreateSimpleMqttClientForHiveMQ(clientId);
 
 //----------------------------------------------------------------------------------------
 //AANMAKEN VAN ALLE OBJECTEN
@@ -7,7 +16,7 @@ using Avans.StatisticalRobot.Interfaces;
 DriveSystem driveSystem = new DriveSystem();
 ObstacleDetectionSystem obstacleDetectionSystem = new ObstacleDetectionSystem();
 IRHumanDetectionSystem irHumanDetectionSystem = new IRHumanDetectionSystem();
-InteractionManager interactionManager = new InteractionManager();
+InteractionManager interactionManager = new InteractionManager(mqttClient);
 
 LCD16x2 ledScreen=new LCD16x2(0x3E);
 Led orangeLed = new Led(22);
@@ -74,6 +83,11 @@ while (true)
 
     int obstacleDistance = obstacleDetectionSystem.ObstacleDistance;
     bool humanDetected = irHumanDetectionSystem.FoundHuman == 1;
+
+    await mqttClient.PublishMessage(Robot.ReadBatteryMillivolts().ToString(),"robot/2242722/battery");
+    await mqttClient.PublishMessage(obstacleDistance.ToString(),"robot/2242722/sensor/obstacledistance");
+    await mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(),"robot/2242722/sensor/humandetected");
+    await mqttClient.PublishMessage(robotState.ToString(),"robot/2242722/state");
 
     switch (robotState)
     {
