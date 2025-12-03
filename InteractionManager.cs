@@ -10,8 +10,6 @@ public class InteractionManager
         new TimeSpan(21,0,0)
     };
     private List<TimeSpan> completedTimes = [];
-    private DateTime lastButtonPressTime = DateTime.MinValue;
-    
     public bool IsInteractionTime()
     {
         TimeSpan now = DateTime.Now.TimeOfDay;
@@ -33,9 +31,11 @@ public class InteractionManager
         }
         return false;
     }
-    public void StartActivity(DateTime startMoment)
+    public void StartActivity()
     {
+        DateTime startMoment=DateTime.Now;
         Robot.PlayNotes("L16EGC6G6");
+        Robot.Wait(500);
         Console.WriteLine(startMoment);
         Robot.Wait(500);
     }
