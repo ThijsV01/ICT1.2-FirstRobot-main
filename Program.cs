@@ -2,6 +2,7 @@ using Avans.StatisticalRobot;
 using Avans.StatisticalRobot.Interfaces;
 using SimpleMqtt;
 using HiveMQtt;
+using System.Text;
 
 //----------------------------------------------------------------------------------------
 //MQTT CLIENT AANMAKEN
@@ -17,13 +18,14 @@ DriveSystem driveSystem = new DriveSystem();
 ObstacleDetectionSystem obstacleDetectionSystem = new ObstacleDetectionSystem();
 IRHumanDetectionSystem irHumanDetectionSystem = new IRHumanDetectionSystem();
 InteractionManager interactionManager = new InteractionManager(mqttClient);
+BatteryService batteryService = new BatteryService();
 
-LCD16x2 ledScreen=new LCD16x2(0x3E);
+LCD16x2 ledScreen = new LCD16x2(0x3E);
 Led orangeLed = new Led(22);
 Button buttonOrange = new Button(23);
 Led blueLed = new Led(5);
 Button buttonBlue = new Button(6);
-Buzzer buzzer = new Buzzer(12,100);
+Buzzer buzzer = new Buzzer(12, 100);
 
 List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem];
 
@@ -44,13 +46,13 @@ RobotState robotState = RobotState.Idle;
 //----------------------------------------------------------------------------------------
 //HELP FUNCTIES
 //----------------------------------------------------------------------------------------
-string lastText="";
+string lastText = "";
 
 void Display(string text)
 {
     if (text != lastText)
     {
-        lastText=text;
+        lastText = text;
         ledScreen.SetText(text);
     }
 }
@@ -84,10 +86,12 @@ while (true)
     int obstacleDistance = obstacleDetectionSystem.ObstacleDistance;
     bool humanDetected = irHumanDetectionSystem.FoundHuman == 1;
 
-    await mqttClient.PublishMessage(Robot.ReadBatteryMillivolts().ToString(),"robot/2242722/battery");
-    await mqttClient.PublishMessage(obstacleDistance.ToString(),"robot/2242722/sensor/obstacledistance");
-    await mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(),"robot/2242722/sensor/humandetected");
-    await mqttClient.PublishMessage(robotState.ToString(),"robot/2242722/state");
+    await mqttClient.PublishMessage(Robot.ReadBatteryMillivolts().ToString(), "robot/2242722/battery");
+    await mqttClient.PublishMessage(obstacleDistance.ToString(), "robot/2242722/sensor/obstacledistance");
+    await mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(), "robot/2242722/sensor/humandetected");
+    await mqttClient.PublishMessage(robotState.ToString(), "robot/2242722/state");
+
+    batteryService.InsertBattery();
 
     switch (robotState)
     {
@@ -143,7 +147,7 @@ while (true)
                 DecreaseSpeed();
                 break;
             }
-            
+
             driveSystem.Stop();
             Display("START \nINTERACTION");
             interactionManager.StartActivity();
