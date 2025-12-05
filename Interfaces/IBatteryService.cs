@@ -1,4 +1,4 @@
 public interface IBatteryService
 {
-    public void InsertBattery();
+    public void InsertBattery(int batteryValue);
 }

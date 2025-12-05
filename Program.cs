@@ -11,6 +11,8 @@ using System.Text;
 string clientId = "Robot-" + Guid.NewGuid().ToString();
 var mqttClient = SimpleMqttClient.CreateSimpleMqttClientForHiveMQ(clientId);
 
+await mqttClient.SubscribeToTopic("robot/2242722/command/#");
+
 //----------------------------------------------------------------------------------------
 //AANMAKEN VAN ALLE OBJECTEN
 //----------------------------------------------------------------------------------------
@@ -71,6 +73,23 @@ void TurnToAvoid()
     Robot.Wait(150);
     driveSystem.Stop();
 }
+//----------------------------------------------------------------------------------------
+//MQTT
+//----------------------------------------------------------------------------------------
+mqttClient.OnMessageReceived += (sender, args) =>
+{
+    Console.WriteLine($"Topic: {args.Topic} Message: {args.Message}");
+
+    if (args.Topic == "robot/2242722/command/start")
+    {
+        robotState = RobotState.Driving;
+    }
+
+    if (args.Topic == "robot/2242722/command/stop")
+    {
+        robotState = RobotState.Idle;
+    }
+};
 
 //----------------------------------------------------------------------------------------
 //DE LOOP
@@ -90,8 +109,6 @@ while (true)
     await mqttClient.PublishMessage(obstacleDistance.ToString(), "robot/2242722/sensor/obstacledistance");
     await mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(), "robot/2242722/sensor/humandetected");
     await mqttClient.PublishMessage(robotState.ToString(), "robot/2242722/state");
-
-    batteryService.InsertBattery();
 
     switch (robotState)
     {
