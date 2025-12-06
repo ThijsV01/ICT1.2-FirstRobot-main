@@ -20,7 +20,6 @@ DriveSystem driveSystem = new DriveSystem();
 ObstacleDetectionSystem obstacleDetectionSystem = new ObstacleDetectionSystem();
 IRHumanDetectionSystem irHumanDetectionSystem = new IRHumanDetectionSystem();
 InteractionManager interactionManager = new InteractionManager(mqttClient);
-BatteryService batteryService = new BatteryService();
 
 LCD16x2 ledScreen = new LCD16x2(0x3E);
 Led orangeLed = new Led(22);
@@ -30,6 +29,8 @@ Button buttonBlue = new Button(6);
 Buzzer buzzer = new Buzzer(12, 100);
 
 List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem];
+bool manualStart=false;
+DateTime lastBatteryUpdate = DateTime.MinValue;
 
 //----------------------------------------------------------------------------------------
 //CONSTANTEN VOOR IN DE LOOP
@@ -74,7 +75,7 @@ void TurnToAvoid()
     driveSystem.Stop();
 }
 //----------------------------------------------------------------------------------------
-//MQTT
+//MQTT BIJ ONTVANGEN COMMANDO WORDT DIT UITGEVOERD
 //----------------------------------------------------------------------------------------
 mqttClient.OnMessageReceived += (sender, args) =>
 {
@@ -82,12 +83,16 @@ mqttClient.OnMessageReceived += (sender, args) =>
 
     if (args.Topic == "robot/2242722/command/start")
     {
-        robotState = RobotState.Driving;
+        if (robotState == RobotState.Idle)
+        {
+            manualStart=true;
+        }
     }
 
     if (args.Topic == "robot/2242722/command/stop")
     {
-        robotState = RobotState.Idle;
+        driveSystem.Stop();
+        robotState=RobotState.Idle;
     }
 };
 
@@ -101,11 +106,19 @@ while (true)
     {
         updatable.Update();
     }
-
     int obstacleDistance = obstacleDetectionSystem.ObstacleDistance;
     bool humanDetected = irHumanDetectionSystem.FoundHuman == 1;
+    
+    //om ervoor te zorgen dat ik niet te veel dezelfde publish krijg die niet nodig zijn.
+    if ((DateTime.Now - lastBatteryUpdate).TotalMinutes >= 2 ||lastBatteryUpdate==DateTime.MinValue)
+    {
+        await mqttClient.PublishMessage(
+            Robot.ReadBatteryMillivolts().ToString(), 
+            "robot/2242722/battery"
+        );
 
-    await mqttClient.PublishMessage(Robot.ReadBatteryMillivolts().ToString(), "robot/2242722/battery");
+        lastBatteryUpdate = DateTime.Now;
+    }
     await mqttClient.PublishMessage(obstacleDistance.ToString(), "robot/2242722/sensor/obstacledistance");
     await mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(), "robot/2242722/sensor/humandetected");
     await mqttClient.PublishMessage(robotState.ToString(), "robot/2242722/state");
@@ -117,16 +130,16 @@ while (true)
             driveSystem.Stop();
             Display("IDLE");
 
-            if (interactionManager.IsInteractionTime())
+            if (interactionManager.IsInteractionTime() || manualStart)
             {
                 robotState = RobotState.Driving;
+                manualStart=false;
             }
 
             break;
         case RobotState.Driving:
 
             Display("DRIVING");
-            buzzer.Beep();
 
             if (humanDetected)
             {
