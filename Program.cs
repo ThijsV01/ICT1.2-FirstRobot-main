@@ -91,7 +91,6 @@ mqttClient.OnMessageReceived += (sender, args) =>
 
     if (args.Topic == "robot/2242722/command/stop")
     {
-        driveSystem.Stop();
         robotState=RobotState.Idle;
     }
 };
@@ -119,9 +118,9 @@ while (true)
 
         lastBatteryUpdate = DateTime.Now;
     }
-    await mqttClient.PublishMessage(obstacleDistance.ToString(), "robot/2242722/sensor/obstacledistance");
-    await mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(), "robot/2242722/sensor/humandetected");
-    await mqttClient.PublishMessage(robotState.ToString(), "robot/2242722/state");
+    _= mqttClient.PublishMessage(obstacleDistance.ToString(), "robot/2242722/sensor/obstacledistance");
+    _= mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(), "robot/2242722/sensor/humandetected");
+    _= mqttClient.PublishMessage(robotState.ToString(), "robot/2242722/state");
 
     switch (robotState)
     {
