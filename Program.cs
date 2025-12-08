@@ -29,15 +29,14 @@ Button buttonBlue = new Button(6);
 Buzzer buzzer = new Buzzer(12, 100);
 
 List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem];
-bool manualStart=false;
 DateTime lastBatteryUpdate = DateTime.MinValue;
 
 //----------------------------------------------------------------------------------------
 //CONSTANTEN VOOR IN DE LOOP
 //----------------------------------------------------------------------------------------
-const double MaxSpeed = 0.5;
-const double SpeedStep = 0.05;
-const int ObstacleSafeDistance = 20;
+const double MaxSpeed = 0.4;
+const double SpeedStep = 0.10;
+const int ObstacleSafeDistance = 40;
 const int ObstacleStopDistance = 10;
 const double TurnSpeed = 0.75;
 
@@ -83,15 +82,12 @@ mqttClient.OnMessageReceived += (sender, args) =>
 
     if (args.Topic == "robot/2242722/command/start")
     {
-        if (robotState == RobotState.Idle)
-        {
-            manualStart=true;
-        }
+        robotState=RobotState.Idle;
     }
 
     if (args.Topic == "robot/2242722/command/stop")
     {
-        robotState=RobotState.Idle;
+        robotState=RobotState.Offline;
     }
 };
 
@@ -111,16 +107,12 @@ while (true)
     //om ervoor te zorgen dat ik niet te veel dezelfde publish krijg die niet nodig zijn.
     if ((DateTime.Now - lastBatteryUpdate).TotalMinutes >= 2 ||lastBatteryUpdate==DateTime.MinValue)
     {
-        await mqttClient.PublishMessage(
-            Robot.ReadBatteryMillivolts().ToString(), 
-            "robot/2242722/battery"
-        );
-
+        await mqttClient.PublishMessage(Robot.ReadBatteryMillivolts().ToString(), "robot/2242722/battery");
         lastBatteryUpdate = DateTime.Now;
     }
-    _= mqttClient.PublishMessage(obstacleDistance.ToString(), "robot/2242722/sensor/obstacledistance");
-    _= mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(), "robot/2242722/sensor/humandetected");
-    _= mqttClient.PublishMessage(robotState.ToString(), "robot/2242722/state");
+    await mqttClient.PublishMessage(obstacleDistance.ToString(), "robot/2242722/sensor/obstacledistance");
+    await mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(), "robot/2242722/sensor/humandetected");
+    await mqttClient.PublishMessage(robotState.ToString(), "robot/2242722/state");
 
     switch (robotState)
     {
@@ -129,10 +121,9 @@ while (true)
             driveSystem.Stop();
             Display("IDLE");
 
-            if (interactionManager.IsInteractionTime() || manualStart)
+            if (interactionManager.IsInteractionTime()||buttonBlue.GetState()=="Pressed")
             {
                 robotState = RobotState.Driving;
-                manualStart=false;
             }
 
             break;
@@ -140,11 +131,11 @@ while (true)
 
             Display("DRIVING");
 
-            if (humanDetected)
-            {
-                robotState = RobotState.StoppingForHuman;
-                break;
-            }
+            // if (humanDetected)
+            // {
+            //     robotState = RobotState.StoppingForHuman;
+            //     break;
+            // }
 
             if (obstacleDistance < ObstacleSafeDistance)
             {

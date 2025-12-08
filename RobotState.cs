@@ -1,4 +1,4 @@
 public enum RobotState
 {
-    Idle, Driving, StoppingForHuman, AvoidingObstacle
+    Idle, Driving, StoppingForHuman, AvoidingObstacle, Offline
 }
