@@ -12,6 +12,7 @@ string clientId = "Robot-" + Guid.NewGuid().ToString();
 var mqttClient = SimpleMqttClient.CreateSimpleMqttClientForHiveMQ(clientId);
 
 await mqttClient.SubscribeToTopic("robot/2242722/command/#");
+await mqttClient.SubscribeToTopic("robot/2242722/interactionmoment");
 
 //----------------------------------------------------------------------------------------
 //AANMAKEN VAN ALLE OBJECTEN
@@ -30,6 +31,7 @@ Buzzer buzzer = new Buzzer(12, 100);
 
 List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem];
 DateTime lastBatteryUpdate = DateTime.MinValue;
+bool interactionMoment=false;
 
 //----------------------------------------------------------------------------------------
 //CONSTANTEN VOOR IN DE LOOP
@@ -89,6 +91,10 @@ mqttClient.OnMessageReceived += (sender, args) =>
     {
         robotState=RobotState.Offline;
     }
+    if (args.Topic == "robot/2242722/interactionmoment")
+    {
+        interactionMoment=true;
+    }
 };
 
 //----------------------------------------------------------------------------------------
@@ -110,9 +116,9 @@ while (true)
         await mqttClient.PublishMessage(Robot.ReadBatteryMillivolts().ToString(), "robot/2242722/battery");
         lastBatteryUpdate = DateTime.Now;
     }
-    await mqttClient.PublishMessage(obstacleDistance.ToString(), "robot/2242722/sensor/obstacledistance");
-    await mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(), "robot/2242722/sensor/humandetected");
-    await mqttClient.PublishMessage(robotState.ToString(), "robot/2242722/state");
+    // _= mqttClient.PublishMessage(obstacleDistance.ToString(), "robot/2242722/sensor/obstacledistance");
+    // _= mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(), "robot/2242722/sensor/humandetected");
+    // _= mqttClient.PublishMessage(robotState.ToString(), "robot/2242722/state");
 
     switch (robotState)
     {
@@ -121,8 +127,9 @@ while (true)
             driveSystem.Stop();
             Display("IDLE");
 
-            if (interactionManager.IsInteractionTime()||buttonBlue.GetState()=="Pressed")
+            if (interactionMoment||buttonBlue.GetState()=="Pressed")
             {
+                interactionMoment=false;
                 robotState = RobotState.Driving;
             }
 
@@ -131,11 +138,11 @@ while (true)
 
             Display("DRIVING");
 
-            // if (humanDetected)
-            // {
-            //     robotState = RobotState.StoppingForHuman;
-            //     break;
-            // }
+            if (humanDetected)
+            {
+                robotState = RobotState.StoppingForHuman;
+                break;
+            }
 
             if (obstacleDistance < ObstacleSafeDistance)
             {
