@@ -30,7 +30,7 @@ Button buttonBlue = new Button(6);
 Buzzer buzzer = new Buzzer(12, 100);
 
 List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem];
-DateTime lastBatteryUpdate = DateTime.MinValue;
+DateTime lastUpdate = DateTime.MinValue;
 bool interactionMoment=false;
 
 //----------------------------------------------------------------------------------------
@@ -111,15 +111,19 @@ while (true)
     bool humanDetected = irHumanDetectionSystem.FoundHuman == 1;
     
     //om ervoor te zorgen dat ik niet te veel dezelfde publish krijg die niet nodig zijn.
-    if ((DateTime.Now - lastBatteryUpdate).TotalMinutes >= 2 ||lastBatteryUpdate==DateTime.MinValue)
+    if ((DateTime.Now - lastUpdate).TotalMinutes >= 1 ||lastUpdate==DateTime.MinValue)
     {
-        await mqttClient.PublishMessage(Robot.ReadBatteryMillivolts().ToString(), "robot/2242722/battery");
-        lastBatteryUpdate = DateTime.Now;
+        string payloadBattery = $"{1};{Robot.ReadBatteryMillivolts()}";
+        await mqttClient.PublishMessage(payloadBattery, "robot/2242722/battery");
+        string payloadObsDist = $"{obstacleDistance}";
+        await mqttClient.PublishMessage(payloadObsDist, "robot/2242722/sensor/obstacledistance");
+        string payloadHumanDetected = $"{(humanDetected ? 1 : 0)}";
+        await mqttClient.PublishMessage(payloadHumanDetected, "robot/2242722/sensor/humandetected");
+        string payloadRobotState = $"{1};{robotState}";
+        //await mqttClient.PublishMessage(payloadRobotState, "robot/2242722/state");
+        lastUpdate = DateTime.Now;
     }
-    // _= mqttClient.PublishMessage(obstacleDistance.ToString(), "robot/2242722/sensor/obstacledistance");
-    // _= mqttClient.PublishMessage((humanDetected ? 1 : 0).ToString(), "robot/2242722/sensor/humandetected");
-    // _= mqttClient.PublishMessage(robotState.ToString(), "robot/2242722/state");
-
+    
     switch (robotState)
     {
         case RobotState.Idle:
@@ -127,7 +131,7 @@ while (true)
             driveSystem.Stop();
             Display("IDLE");
 
-            if (interactionMoment||buttonBlue.GetState()=="Pressed")
+            if (interactionMoment)
             {
                 interactionMoment=false;
                 robotState = RobotState.Driving;
@@ -179,6 +183,9 @@ while (true)
             Display("START \nINTERACTION");
             interactionManager.StartActivity();
             robotState = RobotState.Idle;
+            break;
+        case RobotState.Offline:
+             Display("OFFLINE");
             break;
     }
     //Console.WriteLine($"Robotstate: {robotState} Speed: {driveSystem.GetSpeed()} Distance: {obstacleDistance}");
