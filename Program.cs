@@ -20,18 +20,13 @@ await mqttClient.SubscribeToTopic("robot/2242722/interactionmoment");
 DriveSystem driveSystem = new DriveSystem();
 ObstacleDetectionSystem obstacleDetectionSystem = new ObstacleDetectionSystem();
 IRHumanDetectionSystem irHumanDetectionSystem = new IRHumanDetectionSystem();
-InteractionManager interactionManager = new InteractionManager(mqttClient);
+InteractionSystem interactionSystem = new InteractionSystem(mqttClient);
 
 LCD16x2 ledScreen = new LCD16x2(0x3E);
-Led orangeLed = new Led(22);
-Button buttonOrange = new Button(23);
-Led blueLed = new Led(5);
-Button buttonBlue = new Button(6);
-Buzzer buzzer = new Buzzer(12, 100);
 
-List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem];
+List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem, interactionSystem];
 DateTime lastUpdate = DateTime.MinValue;
-bool interactionMoment=false;
+bool interactionMoment = false;
 
 //----------------------------------------------------------------------------------------
 //CONSTANTEN VOOR IN DE LOOP
@@ -84,16 +79,16 @@ mqttClient.OnMessageReceived += (sender, args) =>
 
     if (args.Topic == "robot/2242722/command/start")
     {
-        robotState=RobotState.Idle;
+        robotState = RobotState.Idle;
     }
 
     if (args.Topic == "robot/2242722/command/stop")
     {
-        robotState=RobotState.Offline;
+        robotState = RobotState.Offline;
     }
     if (args.Topic == "robot/2242722/interactionmoment")
     {
-        interactionMoment=true;
+        interactionMoment = true;
     }
 };
 
@@ -109,9 +104,9 @@ while (true)
     }
     int obstacleDistance = obstacleDetectionSystem.ObstacleDistance;
     bool humanDetected = irHumanDetectionSystem.FoundHuman == 1;
-    
+
     //om ervoor te zorgen dat ik niet te veel dezelfde publish krijg die niet nodig zijn.
-    if ((DateTime.Now - lastUpdate).TotalMinutes >= 1 ||lastUpdate==DateTime.MinValue)
+    if ((DateTime.Now - lastUpdate).TotalMinutes >= 1 || lastUpdate == DateTime.MinValue)
     {
         string payloadBattery = $"{1};{Robot.ReadBatteryMillivolts()}";
         await mqttClient.PublishMessage(payloadBattery, "robot/2242722/battery");
@@ -123,7 +118,7 @@ while (true)
         //await mqttClient.PublishMessage(payloadRobotState, "robot/2242722/state");
         lastUpdate = DateTime.Now;
     }
-    
+
     switch (robotState)
     {
         case RobotState.Idle:
@@ -133,7 +128,7 @@ while (true)
 
             if (interactionMoment)
             {
-                interactionMoment=false;
+                interactionMoment = false;
                 robotState = RobotState.Driving;
             }
 
@@ -181,12 +176,21 @@ while (true)
 
             driveSystem.Stop();
             Display("START \nINTERACTION");
-            interactionManager.StartActivity();
-            robotState = RobotState.Idle;
+            interactionSystem.StartInteraction();
+            robotState = RobotState.Interacting;
+            break;
+        case RobotState.Interacting:
+
+            Display("INTERACTING");
+            if (!interactionSystem.IsActive)
+            {
+                robotState=RobotState.Idle;
+            }
             break;
         case RobotState.Offline:
-             Display("OFFLINE");
+
+            driveSystem.Stop();
+            Display("OFFLINE");
             break;
     }
-    //Console.WriteLine($"Robotstate: {robotState} Speed: {driveSystem.GetSpeed()} Distance: {obstacleDistance}");
 }
