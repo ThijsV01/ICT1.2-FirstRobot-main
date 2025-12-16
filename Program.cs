@@ -181,7 +181,6 @@ while (true)
             break;
         case RobotState.Interacting:
 
-            Display("INTERACTING");
             if (!interactionSystem.IsActive)
             {
                 robotState=RobotState.Idle;

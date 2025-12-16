@@ -13,8 +13,7 @@ public class InteractionSystem : IUpdatable
     private InteractionState state = InteractionState.None;
     private DateTime interactionStart;
     public bool IsActive => state != InteractionState.None;
-    private SimonSays? simonSays;
-    private Quiz? quiz;
+    private IInteractionGame? currentGame;
 
     private const int InteractionTimeoutMinutes = 5;
     public InteractionSystem(SimpleMqttClient client)
@@ -33,8 +32,7 @@ public class InteractionSystem : IUpdatable
     public void EndInteraction()
     {
         state = InteractionState.None;
-        simonSays = null;
-        quiz = null;
+        currentGame = null;
         string payloadEndInteraction = $"{DateTime.Now.ToString("dd-MM-yyyy")};{DateTime.Now.ToString("hh:mm:ss")}";
         _mqttClient.PublishMessage(payloadEndInteraction, "robot/2242722/interaction/eind");
         Robot.PlayNotes("L16EGC6G6");
@@ -46,20 +44,21 @@ public class InteractionSystem : IUpdatable
         {
             _mqttClient.PublishMessage("SimonSays", "robot/2242722/interaction/soort");
 
-            simonSays = new SimonSays();
-            simonSays.StartGame();
+            currentGame = new SimonSays();
+            currentGame.StartGame();
 
-            state = InteractionState.SimonSays;
+            state = InteractionState.Playing;
         }
         else if (buttonOrange.GetState() == "Pressed")
         {
             _mqttClient.PublishMessage("Quiz", "robot/2242722/interaction/soort");
 
-            quiz = new Quiz();
-            quiz.StartGame();
+            currentGame = new Quiz();
+            currentGame.StartGame();
 
-            state = InteractionState.Quiz;
+            state = InteractionState.Playing;
         }
+        //meer games maken kan dus als ik hier zou uitbreiden
     }
     public void Update()
     {
@@ -71,7 +70,8 @@ public class InteractionSystem : IUpdatable
         {
             _mqttClient.PublishMessage("No Interaction", "robot/2242722/interaction/soort");
             ledScreen.SetText("NO \nINTERACTION");
-            
+            EndInteraction();
+
             return;
         }
         switch (state)
@@ -79,13 +79,12 @@ public class InteractionSystem : IUpdatable
             case InteractionState.ChoosingActivity:
                 HandleChoosing();
                 break;
-            case InteractionState.Quiz:
-                //hier moet dan de quiz die dus werkt door het feit dat de robotstate interaction deze functie blijft aanroepen
-                //aan het einde wanneer interactie voorbij is moet de state terug naar none (endinteraction methode aanroepen)
-                break;
-            case InteractionState.SimonSays:
-                //hier moet dan de simon says die dus werkt door het feit dat de robotstate interaction deze functie blijft aanroepen
-                //aan het einde wanneer interactie voorbij is moet de state terug naar none (endinteraction methode aanroepen)
+            case InteractionState.Playing:
+                currentGame!.Update();
+                if (currentGame.IsFinished)
+                {
+                    EndInteraction();
+                }
                 break;
         }
     }
