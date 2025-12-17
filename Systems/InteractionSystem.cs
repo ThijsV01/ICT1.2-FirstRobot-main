@@ -1,3 +1,4 @@
+using System.Text.Json;
 using Avans.StatisticalRobot;
 using Avans.StatisticalRobot.Interfaces;
 using SimpleMqtt;
@@ -9,11 +10,14 @@ public class InteractionSystem : IUpdatable
     private readonly Button buttonOrange = new Button(23);
     private readonly Led blueLed = new Led(5);
     private readonly Button buttonBlue = new Button(6);
+    private readonly Led RedLed = new Led(5);//aanpassen naar juiste nummer
+    private readonly Button buttonRed = new Button(6);//aanpassen naar juiste nummer
     private readonly Buzzer buzzer = new Buzzer(12, 100);
     private InteractionState state = InteractionState.None;
     private DateTime interactionStart;
     public bool IsActive => state != InteractionState.None;
     private IInteractionGame? currentGame;
+    private GameResult? currentResult;
 
     private const int InteractionTimeoutMinutes = 5;
     public InteractionSystem(SimpleMqttClient client)
@@ -23,18 +27,21 @@ public class InteractionSystem : IUpdatable
     public void StartInteraction()
     {
         interactionStart = DateTime.Now;
+        currentResult = new GameResult
+        {
+            StartTime = interactionStart
+        };
         state = InteractionState.ChoosingActivity;
-        string payloadStartInteraction = $"{interactionStart.ToString("dd-MM-yyyy")};{interactionStart.ToString("hh:mm:ss")}";
-        _mqttClient.PublishMessage(payloadStartInteraction, "robot/2242722/interaction/start");
         Robot.PlayNotes("L16EGC6G6");
         ledScreen.SetText("CHOOSE \nACTIVITY");
     }
     public void EndInteraction()
     {
         state = InteractionState.None;
+        SetResultValues();
         currentGame = null;
-        string payloadEndInteraction = $"{DateTime.Now.ToString("dd-MM-yyyy")};{DateTime.Now.ToString("hh:mm:ss")}";
-        _mqttClient.PublishMessage(payloadEndInteraction, "robot/2242722/interaction/eind");
+        _mqttClient.PublishMessage(JsonSerializer.Serialize(currentResult), "robot/2242722/interaction/eind");
+        currentResult=null;
         Robot.PlayNotes("L16EGC6G6");
         ledScreen.SetText("");
     }
@@ -42,8 +49,8 @@ public class InteractionSystem : IUpdatable
     {
         if (buttonBlue.GetState() == "Pressed")
         {
-            _mqttClient.PublishMessage("SimonSays", "robot/2242722/interaction/soort");
-
+            ledScreen.SetText("Simon Says");
+            currentResult!.KindOfGame="Simon Says";
             currentGame = new SimonSays();
             currentGame.StartGame();
 
@@ -51,14 +58,37 @@ public class InteractionSystem : IUpdatable
         }
         else if (buttonOrange.GetState() == "Pressed")
         {
-            _mqttClient.PublishMessage("Quiz", "robot/2242722/interaction/soort");
-
+            ledScreen.SetText("Quiz");
+            currentResult!.KindOfGame="Quiz";
             currentGame = new Quiz();
             currentGame.StartGame();
 
             state = InteractionState.Playing;
         }
-        //meer games maken kan dus als ik hier zou uitbreiden
+        else if (buttonRed.GetState() == "Pressed")
+        {
+            ledScreen.SetText("ReactionGame");
+            currentResult!.KindOfGame="ReactionGame";
+            currentGame = new ReactionGame();
+            currentGame.StartGame();
+
+            state = InteractionState.Playing;
+        }
+    }
+    private void SetResultValues()
+    {
+        
+        currentResult!.EndTime=DateTime.Now;
+        if (currentGame!.Result.InteractionState != null)
+        {
+            currentResult.InteractionState=currentGame!.Result.InteractionState;
+        }
+        else
+        {
+            currentResult.InteractionState="Not started";
+        }
+        currentResult.AverageReactionTimeMs=currentGame.Result.AverageReactionTimeMs;
+        currentResult.CorrectlyAnsweredPercentage=currentGame.Result.CorrectlyAnsweredPercentage;
     }
     public void Update()
     {
@@ -66,12 +96,10 @@ public class InteractionSystem : IUpdatable
         {
             return;
         }
-        if ((DateTime.Now - interactionStart).TotalMinutes > InteractionTimeoutMinutes)
+        if ((DateTime.Now - interactionStart).TotalMinutes > InteractionTimeoutMinutes && state == InteractionState.ChoosingActivity)
         {
-            _mqttClient.PublishMessage("No Interaction", "robot/2242722/interaction/soort");
             ledScreen.SetText("NO \nINTERACTION");
             EndInteraction();
-
             return;
         }
         switch (state)
@@ -80,11 +108,11 @@ public class InteractionSystem : IUpdatable
                 HandleChoosing();
                 break;
             case InteractionState.Playing:
-                currentGame!.Update();
-                if (currentGame.IsFinished)
+                if (currentGame!.IsFinished)
                 {
                     EndInteraction();
                 }
+                currentGame.Update();
                 break;
         }
     }

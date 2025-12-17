@@ -1,4 +1,4 @@
-public class SimonSays:IInteractionGame
+public class ReactionGame:IInteractionGame
 {
     private bool finished=false;
     public bool IsFinished => finished;
@@ -10,6 +10,6 @@ public class SimonSays:IInteractionGame
     }
     public void Update()
     {
-        //hier de simon says en finished naar true wanneer gekozen ding fout is of wanneer tijd voorbij is ofzo.
+        //hier de reaction game en finished naar true wanneer aantal pogingen voorbij is of wanneer tijd voorbij is ofzo.
     }
 }
