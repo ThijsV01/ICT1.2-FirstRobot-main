@@ -1,94 +1,106 @@
 using System.Text.Json;
+using System.Threading.Tasks;
 using Avans.StatisticalRobot;
 using Avans.StatisticalRobot.Interfaces;
 using SimpleMqtt;
 public class InteractionSystem : IUpdatable
 {
     private readonly SimpleMqttClient _mqttClient;
-    private readonly LCD16x2 ledScreen = new LCD16x2(0x3E);
+    private LCD16x2 _ledScreen;
     private readonly Led orangeLed = new Led(22);
-    private readonly Button buttonOrange = new Button(23);
+    private readonly Button buttonOrange;
     private readonly Led blueLed = new Led(5);
-    private readonly Button buttonBlue = new Button(6);
-    private readonly Led RedLed = new Led(5);//aanpassen naar juiste nummer
-    private readonly Button buttonRed = new Button(6);//aanpassen naar juiste nummer
-    private readonly Buzzer buzzer = new Buzzer(12, 100);
+    private readonly Button buttonBlue;
+    private readonly Led redLed = new Led(16);
+    private readonly Button buttonRed;
     private InteractionState state = InteractionState.None;
     private DateTime interactionStart;
     public bool IsActive => state != InteractionState.None;
     private IInteractionGame? currentGame;
-    private GameResult? currentResult;
-
+    private IInteractionGame? nextGame;
+    private GameResult currentResult = new();
     private const int InteractionTimeoutMinutes = 5;
-    public InteractionSystem(SimpleMqttClient client)
+    private DateTime startDelayUntil;
+    private DateTime lastButtonPress = DateTime.MinValue;
+    private const int DebounceMs = 250;
+    public InteractionSystem(SimpleMqttClient client, LCD16x2 ledScreen, Button orange, Button blue, Button red)
     {
         _mqttClient = client;
+        _ledScreen = ledScreen;
+        buttonOrange = orange;
+        buttonBlue = blue;
+        buttonRed = red;
+
     }
     public void StartInteraction()
     {
         interactionStart = DateTime.Now;
-        currentResult = new GameResult
-        {
-            StartTime = interactionStart
-        };
+        currentResult.StartTime = interactionStart;
+        currentResult.Date = DateTime.Now.Date;
         state = InteractionState.ChoosingActivity;
         Robot.PlayNotes("L16EGC6G6");
-        ledScreen.SetText("CHOOSE \nACTIVITY");
+        _ledScreen.SetText("CHOOSE \nACTIVITY");
     }
     public void EndInteraction()
     {
         state = InteractionState.None;
         SetResultValues();
         currentGame = null;
-        _mqttClient.PublishMessage(JsonSerializer.Serialize(currentResult), "robot/2242722/interaction/eind");
-        currentResult=null;
+        _ = _mqttClient.PublishMessage(JsonSerializer.Serialize(currentResult), "robot/2242722/activities/endofinteraction");
+        currentResult = new();
         Robot.PlayNotes("L16EGC6G6");
-        ledScreen.SetText("");
     }
     private void HandleChoosing()
     {
+        if ((DateTime.Now - lastButtonPress).TotalMilliseconds < DebounceMs)
+        {
+            return;
+        }
+    
         if (buttonBlue.GetState() == "Pressed")
         {
-            ledScreen.SetText("Simon Says");
-            currentResult!.KindOfGame="Simon Says";
-            currentGame = new SimonSays();
-            currentGame.StartGame();
-
-            state = InteractionState.Playing;
+            lastButtonPress = DateTime.Now;
+            PrepareGame("Simon Says",new SimonSays(buttonRed, buttonOrange, buttonBlue, _ledScreen,orangeLed, blueLed, redLed));
         }
         else if (buttonOrange.GetState() == "Pressed")
         {
-            ledScreen.SetText("Quiz");
-            currentResult!.KindOfGame="Quiz";
-            currentGame = new Quiz();
-            currentGame.StartGame();
-
-            state = InteractionState.Playing;
+            lastButtonPress = DateTime.Now;
+            PrepareGame("Quiz",new Quiz(_mqttClient, buttonRed, buttonOrange, buttonBlue, _ledScreen));
         }
         else if (buttonRed.GetState() == "Pressed")
         {
-            ledScreen.SetText("ReactionGame");
-            currentResult!.KindOfGame="ReactionGame";
-            currentGame = new ReactionGame();
-            currentGame.StartGame();
-
-            state = InteractionState.Playing;
+            lastButtonPress = DateTime.Now;
+            PrepareGame("Reaction Game",new ReactionGame(buttonRed, buttonOrange, buttonBlue, _ledScreen,orangeLed, blueLed, redLed));
         }
+    }
+    private void PrepareGame(string name, IInteractionGame game)
+    {
+        _ledScreen.SetText(name);
+        currentResult.KindOfGame = name;
+
+        nextGame = game;
+        startDelayUntil = DateTime.Now.AddMilliseconds(300);
+
+        Robot.PlayNotes("L16EGC6G6");
+
+        state = InteractionState.StartingActivity;
     }
     private void SetResultValues()
     {
-        
-        currentResult!.EndTime=DateTime.Now;
-        if (currentGame!.Result.InteractionState != null)
+        currentResult.RobotId = 1;
+        currentResult.EndTime = DateTime.Now;
+        if (currentGame == null)
         {
-            currentResult.InteractionState=currentGame!.Result.InteractionState;
+            currentResult.InteractionState = "Not started";
+            currentResult.AverageReactionTimeMs = -1;
         }
         else
         {
-            currentResult.InteractionState="Not started";
+            currentResult.SimonSaysAmount = currentGame.Result.SimonSaysAmount;
+            currentResult.InteractionState = currentGame.Result.InteractionState;
+            currentResult.AverageReactionTimeMs = currentGame.Result.AverageReactionTimeMs;
+            currentResult.CorrectlyAnsweredPercentage = currentGame.Result.CorrectlyAnsweredPercentage;
         }
-        currentResult.AverageReactionTimeMs=currentGame.Result.AverageReactionTimeMs;
-        currentResult.CorrectlyAnsweredPercentage=currentGame.Result.CorrectlyAnsweredPercentage;
     }
     public void Update()
     {
@@ -98,7 +110,8 @@ public class InteractionSystem : IUpdatable
         }
         if ((DateTime.Now - interactionStart).TotalMinutes > InteractionTimeoutMinutes && state == InteractionState.ChoosingActivity)
         {
-            ledScreen.SetText("NO \nINTERACTION");
+            _ledScreen.SetText("NO \nINTERACTION");
+            currentResult.KindOfGame = "No game chosen";
             EndInteraction();
             return;
         }
@@ -106,13 +119,27 @@ public class InteractionSystem : IUpdatable
         {
             case InteractionState.ChoosingActivity:
                 HandleChoosing();
+
+                break;
+            case InteractionState.StartingActivity:
+                if (DateTime.Now < startDelayUntil)
+                {
+                    return;
+                }
+                currentGame = nextGame!;
+                nextGame = null;
+                currentGame.StartGame();
+                state = InteractionState.Playing;
+
                 break;
             case InteractionState.Playing:
-                if (currentGame!.IsFinished)
+                currentGame!.Update();
+
+                if (currentGame.IsFinished)
                 {
                     EndInteraction();
                 }
-                currentGame.Update();
+
                 break;
         }
     }

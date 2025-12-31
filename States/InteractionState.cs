@@ -1,4 +1,4 @@
 public enum InteractionState
 {
-    None,ChoosingActivity, Playing
+    None,ChoosingActivity, StartingActivity,Playing
 }

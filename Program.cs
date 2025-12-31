@@ -17,12 +17,15 @@ await mqttClient.SubscribeToTopic("robot/2242722/interactionmoment");
 //----------------------------------------------------------------------------------------
 //AANMAKEN VAN ALLE OBJECTEN
 //----------------------------------------------------------------------------------------
+LCD16x2 ledScreen = new LCD16x2(0x3E);
+Button buttonOrange = new Button(23);
+Button buttonBlue = new Button(6);
+Button buttonRed = new Button(17);
+
 DriveSystem driveSystem = new DriveSystem();
 ObstacleDetectionSystem obstacleDetectionSystem = new ObstacleDetectionSystem();
 IRHumanDetectionSystem irHumanDetectionSystem = new IRHumanDetectionSystem();
-InteractionSystem interactionSystem = new InteractionSystem(mqttClient);
-
-LCD16x2 ledScreen = new LCD16x2(0x3E);
+InteractionSystem interactionSystem = new InteractionSystem(mqttClient, ledScreen, buttonOrange, buttonBlue, buttonRed);
 
 List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem, interactionSystem];
 DateTime lastUpdate = DateTime.MinValue;
@@ -33,7 +36,7 @@ bool interactionMoment = false;
 //----------------------------------------------------------------------------------------
 const double MaxSpeed = 0.4;
 const double SpeedStep = 0.10;
-const int ObstacleSafeDistance = 40;
+const int ObstacleSafeDistance = 20;
 const int ObstacleStopDistance = 10;
 const double TurnSpeed = 0.75;
 
@@ -63,15 +66,31 @@ void DecreaseSpeed()
 {
     driveSystem.SetForwardSpeed(Math.Max(driveSystem.GetSpeed() - SpeedStep, 0));
 }
-void TurnToAvoid()
+async Task TurnToAvoid()
 {
     driveSystem.Stop();
     driveSystem.SetTurnSpeed(TurnSpeed);
-    Robot.Wait(150);
+    await Task.Delay(150);
     driveSystem.Stop();
 }
+Button? GetPressedButton()
+{
+    if (buttonRed.GetState() == "Pressed")
+    {
+        return buttonRed;
+    }
+    if (buttonOrange.GetState() == "Pressed")
+    {
+        return buttonOrange;
+    }
+    if (buttonBlue.GetState() == "Pressed")
+    {
+        return buttonBlue;
+    }
+    return null;
+}
 //----------------------------------------------------------------------------------------
-//MQTT BIJ ONTVANGEN COMMANDO WORDT DIT UITGEVOERD
+//MQTT BIJ ONTVANGEN BERICHT WORDT DIT UITGEVOERD
 //----------------------------------------------------------------------------------------
 mqttClient.OnMessageReceived += (sender, args) =>
 {
@@ -97,7 +116,7 @@ mqttClient.OnMessageReceived += (sender, args) =>
 //----------------------------------------------------------------------------------------
 while (true)
 {
-    Robot.Wait(50);
+    await Task.Delay(50);
     foreach (IUpdatable updatable in updatables)
     {
         updatable.Update();
@@ -112,11 +131,21 @@ while (true)
         await mqttClient.PublishMessage(payloadBattery, "robot/2242722/battery");
         string payloadObsDist = $"{obstacleDistance}";
         await mqttClient.PublishMessage(payloadObsDist, "robot/2242722/sensor/obstacledistance");
+
+        lastUpdate = DateTime.Now;
+    }
+    //alleen bij mens detecteren in database zetten, want wat heb je eraan als je het erin zet als er niks gebeurd.
+    if (humanDetected)
+    {
         string payloadHumanDetected = $"{(humanDetected ? 1 : 0)}";
         await mqttClient.PublishMessage(payloadHumanDetected, "robot/2242722/sensor/humandetected");
-        string payloadRobotState = $"{1};{robotState}";
-        //await mqttClient.PublishMessage(payloadRobotState, "robot/2242722/state");
-        lastUpdate = DateTime.Now;
+    }
+    if (robotState != RobotState.Interacting && robotState != RobotState.Idle && robotState != RobotState.Offline)
+    {
+        if (GetPressedButton() != null)
+        {
+            robotState = RobotState.Offline;
+        }
     }
 
     switch (robotState)
@@ -161,7 +190,7 @@ while (true)
                 break;
             }
 
-            TurnToAvoid();
+            await TurnToAvoid();
             robotState = RobotState.Driving;
             break;
         case RobotState.StoppingForHuman:
@@ -175,7 +204,6 @@ while (true)
             }
 
             driveSystem.Stop();
-            Display("START \nINTERACTION");
             interactionSystem.StartInteraction();
             robotState = RobotState.Interacting;
             break;
@@ -183,12 +211,18 @@ while (true)
 
             if (!interactionSystem.IsActive)
             {
-                robotState=RobotState.Idle;
+                robotState = RobotState.Idle;
             }
             break;
         case RobotState.Offline:
 
             driveSystem.Stop();
+            await Task.Delay(500);
+            var pressedButton = GetPressedButton();
+            if (pressedButton != null)
+            {
+                robotState = RobotState.Idle;
+            }
             Display("OFFLINE");
             break;
     }
