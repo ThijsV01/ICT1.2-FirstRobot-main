@@ -28,17 +28,21 @@ IRHumanDetectionSystem irHumanDetectionSystem = new IRHumanDetectionSystem();
 InteractionSystem interactionSystem = new InteractionSystem(mqttClient, ledScreen, buttonOrange, buttonBlue, buttonRed);
 
 List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem, interactionSystem];
-DateTime lastUpdate = DateTime.MinValue;
-bool interactionMoment = false;
+
 
 //----------------------------------------------------------------------------------------
-//CONSTANTEN VOOR IN DE LOOP
+//VARIABELEN VOOR IN DE LOOP
 //----------------------------------------------------------------------------------------
 const double MaxSpeed = 0.4;
-const double SpeedStep = 0.10;
-const int ObstacleSafeDistance = 20;
-const int ObstacleStopDistance = 10;
+const double SpeedStep = 0.05;
+const int ObstacleSafeDistance = 25;
+const int ObstacleStopDistance = 15;
 const double TurnSpeed = 0.75;
+
+DateTime lastUpdate = DateTime.MinValue;
+bool interactionMoment = false;
+DateTime avoidStartTime = DateTime.MinValue;
+bool isAvoiding = false;
 
 //----------------------------------------------------------------------------------------
 //ROBOTSTATUS BIJ OPSTARTEN
@@ -66,13 +70,15 @@ void DecreaseSpeed()
 {
     driveSystem.SetForwardSpeed(Math.Max(driveSystem.GetSpeed() - SpeedStep, 0));
 }
-async Task TurnToAvoid()
+void EmergencyStop()
+{
+    driveSystem.StopImmediately();
+}
+void StopGradually()
 {
     driveSystem.Stop();
-    driveSystem.SetTurnSpeed(TurnSpeed);
-    await Task.Delay(150);
-    driveSystem.Stop();
 }
+
 Button? GetPressedButton()
 {
     if (buttonRed.GetState() == "Pressed")
@@ -152,7 +158,7 @@ while (true)
     {
         case RobotState.Idle:
 
-            driveSystem.Stop();
+            StopGradually();
             Display("IDLE");
 
             if (interactionMoment)
@@ -172,40 +178,76 @@ while (true)
                 break;
             }
 
-            if (obstacleDistance < ObstacleSafeDistance)
+            if (obstacleDistance < ObstacleStopDistance)
             {
                 robotState = RobotState.AvoidingObstacle;
                 break;
             }
-
-            IncreaseSpeed();
+            else if (obstacleDistance < ObstacleSafeDistance)
+            {
+                if (driveSystem.GetSpeed() < 0.02)
+                {
+                    robotState = RobotState.AvoidingObstacle;
+                }
+                else
+                {
+                    DecreaseSpeed();
+                }
+            }
+            else
+            {
+                IncreaseSpeed();
+            }
             break;
         case RobotState.AvoidingObstacle:
 
             Display("AVOIDING \nOBSTACLE");
 
-            if (driveSystem.GetSpeed() > 0 && obstacleDistance > ObstacleStopDistance)
+            if (!isAvoiding)
             {
-                DecreaseSpeed();
+                isAvoiding = true;
+                avoidStartTime = DateTime.Now;
+                EmergencyStop();
                 break;
             }
 
-            await TurnToAvoid();
+            double elapsedMs = (DateTime.Now - avoidStartTime).TotalMilliseconds;
+
+            if (elapsedMs < 200)
+            {
+                StopGradually();
+                break;
+            }
+
+            if (elapsedMs < 700)
+            {
+                EmergencyStop();
+                driveSystem.SetTurnSpeed(TurnSpeed);
+                break;
+            }
+
+            StopGradually();
+            isAvoiding = false;
             robotState = RobotState.Driving;
             break;
         case RobotState.StoppingForHuman:
 
             Display("AAAH HUMAN!!");
 
-            if (driveSystem.GetSpeed() > 0 && obstacleDistance > ObstacleStopDistance)
+            if (obstacleDistance < ObstacleStopDistance)
             {
-                DecreaseSpeed();
-                break;
+                EmergencyStop();
             }
-
-            driveSystem.Stop();
-            interactionSystem.StartInteraction();
-            robotState = RobotState.Interacting;
+            else if(driveSystem.GetSpeed() > 0.02)
+            {
+                StopGradually();
+            }
+            else
+            {
+                EmergencyStop();
+                interactionSystem.StartInteraction();
+                robotState = RobotState.Interacting;
+            }
             break;
         case RobotState.Interacting:
 
@@ -216,7 +258,7 @@ while (true)
             break;
         case RobotState.Offline:
 
-            driveSystem.Stop();
+            EmergencyStop();
             await Task.Delay(500);
             var pressedButton = GetPressedButton();
             if (pressedButton != null)
