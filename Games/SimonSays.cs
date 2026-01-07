@@ -141,11 +141,15 @@ public class SimonSays : IInteractionGame
 
         if (pressedButton != SimonSaysListDuringGame[currentInputIndex].Button)
         {
+            Robot.PlayNotes("L8E5G5D6C6");
             state = GameState.Finished;
             return;
         }
 
         currentInputIndex++;
+        redLed.SetOff();
+        orangeLed.SetOff();
+        blueLed.SetOff();
 
         if (currentInputIndex >= SimonSaysListDuringGame.Count)
         {
@@ -173,22 +177,26 @@ public class SimonSays : IInteractionGame
         blueLed.SetOff();
 
         finished = true;
-        lcd.SetText("SIMON SAYS\nFINISHED");
+        lcd.SetText("GAME\nFINISHED");
+        Robot.PlayNotes("L16EGC6G6");
     }
     private Button? GetPressedButton()
     {
         if (buttonRed.GetState() == "Pressed")
         {
+            redLed.SetOn();
             lastButtonPress = DateTime.Now;
             return buttonRed;
         }
         if (buttonOrange.GetState() == "Pressed")
         {
+            orangeLed.SetOn();
             lastButtonPress = DateTime.Now;
             return buttonOrange;
         }
         if (buttonBlue.GetState() == "Pressed")
         {
+            blueLed.SetOn();
             lastButtonPress = DateTime.Now;
             return buttonBlue;
         }

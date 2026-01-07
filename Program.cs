@@ -21,11 +21,14 @@ LCD16x2 ledScreen = new LCD16x2(0x3E);
 Button buttonOrange = new Button(23);
 Button buttonBlue = new Button(6);
 Button buttonRed = new Button(17);
+Led orangeLed = new Led(22);
+Led blueLed = new Led(5);
+Led redLed = new Led(16);
 
 DriveSystem driveSystem = new DriveSystem();
 ObstacleDetectionSystem obstacleDetectionSystem = new ObstacleDetectionSystem();
 IRHumanDetectionSystem irHumanDetectionSystem = new IRHumanDetectionSystem();
-InteractionSystem interactionSystem = new InteractionSystem(mqttClient, ledScreen, buttonOrange, buttonBlue, buttonRed);
+InteractionSystem interactionSystem = new InteractionSystem(mqttClient, ledScreen, buttonOrange, buttonBlue, buttonRed, orangeLed,blueLed,redLed);
 
 List<IUpdatable> updatables = [obstacleDetectionSystem, driveSystem, irHumanDetectionSystem, interactionSystem];
 
@@ -113,6 +116,9 @@ mqttClient.OnMessageReceived += (sender, args) =>
     }
     if (args.Topic == "robot/2242722/interactionmoment")
     {
+        redLed.SetOn();
+        orangeLed.SetOn();
+        blueLed.SetOn();
         interactionMoment = true;
     }
 };
@@ -164,6 +170,9 @@ while (true)
             if (interactionMoment)
             {
                 interactionMoment = false;
+                orangeLed.SetOff();
+                redLed.SetOff();
+                blueLed.SetOff();
                 robotState = RobotState.Driving;
             }
 
@@ -205,6 +214,7 @@ while (true)
 
             if (!isAvoiding)
             {
+                blueLed.SetOn();
                 isAvoiding = true;
                 avoidStartTime = DateTime.Now;
                 EmergencyStop();
@@ -228,6 +238,7 @@ while (true)
 
             StopGradually();
             isAvoiding = false;
+            blueLed.SetOff();
             robotState = RobotState.Driving;
             break;
         case RobotState.StoppingForHuman:
@@ -236,14 +247,20 @@ while (true)
 
             if (obstacleDistance < ObstacleStopDistance)
             {
+                redLed.SetOn();
+                orangeLed.SetOff();
                 EmergencyStop();
             }
             else if(driveSystem.GetSpeed() > 0.02)
             {
                 StopGradually();
+                redLed.SetOff();
+                orangeLed.SetOn();
             }
             else
             {
+                redLed.SetOff();
+                orangeLed.SetOff();
                 EmergencyStop();
                 interactionSystem.StartInteraction();
                 robotState = RobotState.Interacting;
@@ -259,10 +276,12 @@ while (true)
         case RobotState.Offline:
 
             EmergencyStop();
+            redLed.SetOn();
             await Task.Delay(500);
             var pressedButton = GetPressedButton();
             if (pressedButton != null)
             {
+                redLed.SetOff();
                 robotState = RobotState.Idle;
             }
             Display("OFFLINE");

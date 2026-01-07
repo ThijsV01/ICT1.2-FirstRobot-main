@@ -114,6 +114,7 @@ public class ReactionGame : IInteractionGame
 
         if (pressedButton == correctButton)
         {
+            Robot.PlayNotes("L16EGC6G6");
             correctAnswered++;
         }
         totalReactionTrainingMoments++;
@@ -146,7 +147,8 @@ public class ReactionGame : IInteractionGame
         Result.InteractionState = state;
         Result.SimonSaysAmount = null;
         finished = true;
-        lcd.SetText("REACTION\nFINISHED");
+        lcd.SetText("GAME\nFINISHED");
+        Robot.PlayNotes("L16EGC6G6");
     }
     private Button? GetPressedButton()
     {

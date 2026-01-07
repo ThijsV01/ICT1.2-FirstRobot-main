@@ -12,6 +12,9 @@ public class Quiz : IInteractionGame
     private readonly Button buttonRed;
     private readonly Button buttonOrange;
     private readonly Button buttonBlue;
+    private bool prevRed;
+    private bool prevOrange;
+    private bool prevBlue;
     private readonly LCD16x2 lcd;
     private DateTime startTime;
     private TimeSpan TimeToPlay = TimeSpan.FromMinutes(5);
@@ -21,8 +24,7 @@ public class Quiz : IInteractionGame
     private int currentQuestionIndex;
     private int currentCorrectAnswerIndex;
     private DateTime startResponseTime;
-    private DateTime lastButtonPress = DateTime.MinValue;
-    private const int DebounceMs = 250;
+    private CancellationTokenSource? scrollCts;
     private List<TimeSpan> ReactionTimes = [];
     private GameState state;
     public GameResult Result { get; private set; } = new();
@@ -54,7 +56,26 @@ public class Quiz : IInteractionGame
             subscribed = true;
         }
     }
+    private async Task ScrollActivitiesAsync(string displayText)
+    {
+        string line1 = "ANSWER QUESTION:";
+        string line2 = displayText;
 
+        int index = 0;
+
+        while (state == GameState.AskingQuestion || state == GameState.WaitingForResponse)
+        {
+            string view = line2.Substring(index, 16);
+
+            lcd.SetTextNoRefresh($"{line1,-16}\n{view}");
+
+            index++;
+            if (index > line2.Length - 16)
+                index = 0;
+
+            await Task.Delay(300);
+        }
+    }
     private void HandleIncomingQuestions(object? sender, SimpleMqttMessage args)
     {
         if (state != GameState.WaitingForQuestions)
@@ -137,21 +158,20 @@ public class Quiz : IInteractionGame
         var answers = new List<string> { q.CorrectAnswer!, q.WrongAnswer!, q.WrongAnswer2! };
         answers = answers.OrderBy(_ => _rnd.Next()).ToList();
 
-        //hier past niet alles in, dus daar moet ik nog naar kijken
-        string displayText = $"{q.Question}\nR:{answers[0]} O:{answers[1]} B:{answers[2]}";
-        lcd.SetText(displayText.Length <= 32 ? displayText : displayText.Substring(0, 32));
+        string displayText = $"{q.Question}   R:{answers[0]}    O:{answers[1]}    B:{answers[2]}";
+        scrollCts?.Cancel();
+        scrollCts = new CancellationTokenSource();
+        _ = ScrollActivitiesAsync(displayText);
 
         currentCorrectAnswerIndex = answers.IndexOf(q.CorrectAnswer!);
         startResponseTime = DateTime.Now;
+        prevRed = false;
+        prevOrange = false;
+        prevBlue = false;
         state = GameState.WaitingForResponse;
     }
     private void HandleResponse()
     {
-        if ((DateTime.Now - lastButtonPress).TotalMilliseconds < DebounceMs)
-        {
-            return;
-        }
-
         if (DateTime.Now - startResponseTime > QuestionTimeLimit)
         {
             ReactionTimes.Add(QuestionTimeLimit);
@@ -166,33 +186,38 @@ public class Quiz : IInteractionGame
             }
             return;
         }
+        bool red = buttonRed.GetState() == "Pressed";
+        bool orange = buttonOrange.GetState() == "Pressed";
+        bool blue = buttonBlue.GetState() == "Pressed";
+
         int? selected = null;
-        if (buttonRed.GetState() == "Pressed")
+
+        if (red && !prevRed)
         {
-            lastButtonPress = DateTime.Now;
-            ReactionTimes.Add(DateTime.Now - startResponseTime);
             selected = 0;
         }
-        else if (buttonOrange.GetState() == "Pressed")
+        else if (orange && !prevOrange)
         {
-            lastButtonPress = DateTime.Now;
-            ReactionTimes.Add(DateTime.Now - startResponseTime);
             selected = 1;
         }
-        else if (buttonBlue.GetState() == "Pressed")
+        else if (blue && !prevBlue)
         {
-            lastButtonPress = DateTime.Now;
-            ReactionTimes.Add(DateTime.Now - startResponseTime);
             selected = 2;
         }
+
+        prevRed = red;
+        prevOrange = orange;
+        prevBlue = blue;
+
         if (!selected.HasValue)
-        {
             return;
-        }
+
+        ReactionTimes.Add(DateTime.Now - startResponseTime);
 
         if (selected.Value == currentCorrectAnswerIndex)
         {
             correctAnswered++;
+            Robot.PlayNotes("L16EGC6G6");
         }
 
         currentQuestionIndex++;
@@ -224,6 +249,7 @@ public class Quiz : IInteractionGame
 
         finished = true;
         subscribed = false;
-        lcd.SetText("QUIZ\nFINISHED");
+        lcd.SetText("GAME\nFINISHED");
+        Robot.PlayNotes("L16EGC6G6");
     }
 }

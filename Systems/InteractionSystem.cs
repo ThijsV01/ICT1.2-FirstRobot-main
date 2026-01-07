@@ -7,11 +7,11 @@ public class InteractionSystem : IUpdatable
 {
     private readonly SimpleMqttClient _mqttClient;
     private LCD16x2 _ledScreen;
-    private readonly Led orangeLed = new Led(22);
+    private readonly Led orangeLed;
     private readonly Button buttonOrange;
-    private readonly Led blueLed = new Led(5);
+    private readonly Led blueLed;
     private readonly Button buttonBlue;
-    private readonly Led redLed = new Led(16);
+    private readonly Led redLed;
     private readonly Button buttonRed;
     private InteractionState state = InteractionState.None;
     private DateTime interactionStart;
@@ -23,15 +23,38 @@ public class InteractionSystem : IUpdatable
     private DateTime startDelayUntil;
     private DateTime lastButtonPress = DateTime.MinValue;
     private const int DebounceMs = 250;
-    public InteractionSystem(SimpleMqttClient client, LCD16x2 ledScreen, Button orange, Button blue, Button red)
+    public InteractionSystem(SimpleMqttClient client, LCD16x2 ledScreen, Button orange, Button blue, Button red, Led orangeLed, Led blueLed, Led redLed)
     {
         _mqttClient = client;
         _ledScreen = ledScreen;
         buttonOrange = orange;
         buttonBlue = blue;
         buttonRed = red;
+        this.orangeLed = orangeLed;
+        this.blueLed = blueLed;
+        this.redLed = redLed;
 
     }
+    private async Task ScrollActivitiesAsync()
+{
+    string line1 = "CHOOSE ACTIVITY";
+    string line2 = "ORANGE:QUIZ   BLUE:SIMON SAYS   RED:REACTION GAME";
+
+    int index = 0;
+
+    while (state == InteractionState.ChoosingActivity)
+    {
+        string view = line2.Substring(index, 16);
+
+        _ledScreen.SetTextNoRefresh($"{line1,-16}\n{view}");
+
+        index++;
+        if (index > line2.Length - 16)
+            index = 0;
+
+        await Task.Delay(300);
+    }
+}
     public void StartInteraction()
     {
         interactionStart = DateTime.Now;
@@ -39,7 +62,7 @@ public class InteractionSystem : IUpdatable
         currentResult.Date = DateTime.Now.Date;
         state = InteractionState.ChoosingActivity;
         Robot.PlayNotes("L16EGC6G6");
-        _ledScreen.SetText("CHOOSE \nACTIVITY");
+        _ = ScrollActivitiesAsync();
     }
     public void EndInteraction()
     {
@@ -52,25 +75,34 @@ public class InteractionSystem : IUpdatable
     }
     private void HandleChoosing()
     {
+        redLed.SetOn();
+        orangeLed.SetOn();
+        blueLed.SetOn();
         if ((DateTime.Now - lastButtonPress).TotalMilliseconds < DebounceMs)
         {
             return;
         }
-    
+
         if (buttonBlue.GetState() == "Pressed")
         {
             lastButtonPress = DateTime.Now;
-            PrepareGame("Simon Says",new SimonSays(buttonRed, buttonOrange, buttonBlue, _ledScreen,orangeLed, blueLed, redLed));
+            redLed.SetOff();
+            orangeLed.SetOff();
+            PrepareGame("Simon Says", new SimonSays(buttonRed, buttonOrange, buttonBlue, _ledScreen, orangeLed, blueLed, redLed));
         }
         else if (buttonOrange.GetState() == "Pressed")
         {
             lastButtonPress = DateTime.Now;
-            PrepareGame("Quiz",new Quiz(_mqttClient, buttonRed, buttonOrange, buttonBlue, _ledScreen));
+            redLed.SetOff();
+            blueLed.SetOff();
+            PrepareGame("Quiz", new Quiz(_mqttClient, buttonRed, buttonOrange, buttonBlue, _ledScreen));
         }
         else if (buttonRed.GetState() == "Pressed")
         {
             lastButtonPress = DateTime.Now;
-            PrepareGame("Reaction Game",new ReactionGame(buttonRed, buttonOrange, buttonBlue, _ledScreen,orangeLed, blueLed, redLed));
+            orangeLed.SetOff();
+            blueLed.SetOff();
+            PrepareGame("Reaction Game", new ReactionGame(buttonRed, buttonOrange, buttonBlue, _ledScreen, orangeLed, blueLed, redLed));
         }
     }
     private void PrepareGame(string name, IInteractionGame game)
@@ -126,6 +158,9 @@ public class InteractionSystem : IUpdatable
                 {
                     return;
                 }
+                redLed.SetOff();
+                orangeLed.SetOff();
+                blueLed.SetOff();
                 currentGame = nextGame!;
                 nextGame = null;
                 currentGame.StartGame();
